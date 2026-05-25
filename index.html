@@ -562,27 +562,51 @@
       syncLocal();
     }
 
+    function normalizeImportedRows(list) {
+      if (!Array.isArray(list)) return [];
+      return list.map(item => ({
+        name: item?.name ?? item?.atividade ?? 'Nova atividade',
+        start: item?.start ?? item?.inicio ?? '',
+        end: item?.end ?? item?.fim ?? '',
+        pct: Math.max(0, Math.min(100, Number(item?.pct ?? item?.percentual ?? item?.progresso ?? 0) || 0)),
+        status: item?.status ?? item?.situacao ?? 'Planejada'
+      }));
+    }
+
     function loadFromJson() {
       const input = document.createElement('input');
-      input.type = 'file'; input.accept = '.json';
+      input.type = 'file';
+      input.accept = '.json,application/json';
       input.onchange = async (e) => {
-        if(!e.target.files.length) return;
-        const text = await e.target.files[0].text();
+        if (!e.target.files.length) return;
         try {
+          const file = e.target.files[0];
+          const text = await file.text();
           const obj = JSON.parse(text);
-          if(obj.name) document.getElementById('projName').value = obj.name;
-          if(obj.client) document.getElementById('projClient').value = obj.client;
-          if(obj.scope) document.getElementById('projScope').value = obj.scope;
 
-          if(Array.isArray(obj.lines)) rows = obj.lines;
-          else if(Array.isArray(obj.rows)) rows = obj.rows;
-          else rows = obj;
+          if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+            if (obj.name) document.getElementById('projName').value = obj.name;
+            if (obj.client) document.getElementById('projClient').value = obj.client;
+            if (obj.scope) document.getElementById('projScope').value = obj.scope;
+          }
 
+          let imported = [];
+          if (Array.isArray(obj)) imported = normalizeImportedRows(obj);
+          else if (Array.isArray(obj.lines)) imported = normalizeImportedRows(obj.lines);
+          else if (Array.isArray(obj.rows)) imported = normalizeImportedRows(obj.rows);
+          else if (obj.project && Array.isArray(obj.project.lines)) imported = normalizeImportedRows(obj.project.lines);
+          else throw new Error('Estrutura JSON inválida');
+
+          rows = imported;
           isDirty = false;
           dirtyWarning.classList.remove('visible');
           syncLocal();
           renderAll();
-        } catch(err) { alert("Erro ao importar JSON."); }
+          alert('JSON importado com sucesso.');
+        } catch (err) {
+          console.error('Falha ao importar JSON:', err);
+          alert('Erro ao importar JSON. Verifique se o arquivo é um JSON válido exportado pelo sistema.');
+        }
       };
       input.click();
     }
